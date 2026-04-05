@@ -1,0 +1,19 @@
+[package]
+name = "chambers-benchmark"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "chambers-bench"
+path = "src/main.rs"
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-runtime = { workspace = true }
+chambers-orchestrator = { workspace = true }
+chambers-operation = { workspace = true }
+chambers-burn = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

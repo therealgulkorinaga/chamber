@@ -1,0 +1,61 @@
+[workspace]
+members = [
+    "crates/chambers-types",
+    "crates/chambers-crypto",
+    "crates/chambers-world",
+    "crates/chambers-object",
+    "crates/chambers-policy",
+    "crates/chambers-capability",
+    "crates/chambers-state",
+    "crates/chambers-operation",
+    "crates/chambers-interpreter",
+    "crates/chambers-burn",
+    "crates/chambers-vault",
+    "crates/chambers-audit",
+    "crates/chambers-view",
+    "crates/chambers-orchestrator",
+    "crates/chambers-runtime",
+    "crates/chambers-cli",
+    "crates/chambers-benchmark",
+    "crates/chambers-adapter",
+    "crates/chambers-app",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+# Internal crates
+chambers-types = { path = "crates/chambers-types" }
+chambers-crypto = { path = "crates/chambers-crypto" }
+chambers-world = { path = "crates/chambers-world" }
+chambers-object = { path = "crates/chambers-object" }
+chambers-policy = { path = "crates/chambers-policy" }
+chambers-capability = { path = "crates/chambers-capability" }
+chambers-state = { path = "crates/chambers-state" }
+chambers-operation = { path = "crates/chambers-operation" }
+chambers-interpreter = { path = "crates/chambers-interpreter" }
+chambers-burn = { path = "crates/chambers-burn" }
+chambers-vault = { path = "crates/chambers-vault" }
+chambers-audit = { path = "crates/chambers-audit" }
+chambers-view = { path = "crates/chambers-view" }
+chambers-orchestrator = { path = "crates/chambers-orchestrator" }
+chambers-runtime = { path = "crates/chambers-runtime" }
+
+# External dependencies
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+zeroize = { version = "1", features = ["derive"] }
+aes-gcm = "0.10"
+rand = "0.8"
+sha2 = "0.10"
+tracing = "0.1"
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }

@@ -1,0 +1,17 @@
+[package]
+name = "chambers-operation"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-state = { workspace = true }
+chambers-policy = { workspace = true }
+chambers-capability = { workspace = true }
+chambers-vault = { workspace = true }
+chambers-audit = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

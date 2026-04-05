@@ -1,0 +1,11 @@
+[package]
+name = "chambers-orchestrator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-runtime = { workspace = true }
+chambers-operation = { workspace = true }
+thiserror = { workspace = true }
+serde_json = { workspace = true }

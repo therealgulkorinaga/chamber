@@ -1,0 +1,15 @@
+[package]
+name = "chambers-burn"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-crypto = { workspace = true }
+chambers-state = { workspace = true }
+chambers-capability = { workspace = true }
+chambers-audit = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }

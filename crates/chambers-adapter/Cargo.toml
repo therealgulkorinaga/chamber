@@ -1,0 +1,27 @@
+[package]
+name = "chambers-adapter"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "chambers-server"
+path = "src/main.rs"
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-runtime = { workspace = true }
+chambers-burn = { workspace = true }
+chambers-operation = { workspace = true }
+chambers-state = { workspace = true }
+chambers-view = { workspace = true }
+chambers-audit = { workspace = true }
+chambers-vault = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

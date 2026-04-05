@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHAMBERS</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#111118;--bg2:#1a1a2e;--bg3:#16213e;--bg4:#0f3460;--fg:#e8e8e8;--fg2:#888;
+--green:#16c784;--red:#ea3943;--yellow:#f0b90b;--blue:#4a9eff;
+--mono:'SF Mono','Cascadia Code','Fira Code','Consolas',monospace;
+--chamber-border:#2a2a4a}
+html,body{height:100%;background:var(--bg);color:var(--fg);font:13px/1.6 var(--mono)}
+button{font:inherit;cursor:pointer;background:var(--bg3);color:var(--fg);border:1px solid #334;
+padding:7px 16px;border-radius:4px;transition:background .15s}
+button:hover{background:#1a5a90}
+button.danger{background:#3a1525;border-color:#5a2535}
+button.danger:hover{background:#5a1525}
+button.primary{background:#0a4a2a;border-color:#1a6a3a}
+button.primary:hover{background:#1a6a3a}
+input,select,textarea{font:inherit;background:var(--bg);color:var(--fg);border:1px solid #334;
+padding:6px 10px;border-radius:4px;width:100%}
+textarea{resize:vertical;min-height:70px}
+select{width:auto;min-width:180px}
+label{display:block;color:var(--fg2);font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #1a1a2e}
+th{color:var(--fg2);font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:var(--bg)}
+.result{margin-top:10px;padding:8px 12px;border-radius:4px;font-size:12px;white-space:pre-wrap;word-break:break-all}
+.result.ok{background:rgba(22,199,132,.1);border:1px solid rgba(22,199,132,.25);color:var(--green)}
+.result.err{background:rgba(234,57,67,.1);border:1px solid rgba(234,57,67,.25);color:var(--red)}
+.result.warn{background:rgba(240,185,11,.08);border:1px solid rgba(240,185,11,.2);color:var(--yellow)}
+.badge{display:inline-block;padding:2px 10px;border-radius:3px;font-size:11px;font-weight:bold;letter-spacing:.5px}
+.badge.exploring{background:rgba(22,199,132,.15);color:var(--green)}
+.badge.reviewing{background:rgba(240,185,11,.15);color:var(--yellow)}
+.badge.finalizing{background:rgba(74,158,255,.15);color:var(--blue)}
+.badge.destroyed{background:rgba(234,57,67,.15);color:var(--red)}
+.badge.created{background:#333;color:#aaa}
+.field{margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* --- LOBBY (outside the chamber) --- */
+#lobby{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px}
+#lobby h1{font-size:22px;letter-spacing:4px;color:var(--fg);margin-bottom:6px}
+#lobby .subtitle{color:var(--fg2);font-size:12px;margin-bottom:40px}
+#lobby .create-box{background:var(--bg2);border:1px solid var(--chamber-border);border-radius:8px;padding:30px;width:100%;max-width:500px}
+#lobby .create-box h2{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--fg2);margin-bottom:16px}
+#lobby .btn-row{display:flex;gap:10px;margin-top:16px}
+#archive-section{margin-top:40px;width:100%;max-width:700px}
+#archive-section h2{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--fg2);margin-bottom:12px}
+
+/* --- CHAMBER (the world widget) --- */
+#chamber{display:none;height:100vh;flex-direction:column;overflow:hidden}
+#chamber.open{display:flex}
+#chamber-header{background:var(--bg2);border-bottom:2px solid var(--chamber-border);padding:12px 20px;display:flex;align-items:center;gap:16px}
+#chamber-header .question{flex:1;font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chamber-header .meta{font-size:11px;color:var(--fg2);display:flex;gap:14px;align-items:center}
+#chamber-body{display:flex;flex:1;overflow:hidden}
+#entries-panel{flex:1;overflow-y:auto;border-right:1px solid var(--chamber-border);padding:16px}
+#entries-panel h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fg2);margin-bottom:10px}
+#moves-panel{width:360px;min-width:360px;overflow-y:auto;padding:16px;background:var(--bg2)}
+#moves-panel h3{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--fg2);margin-bottom:10px}
+.action-group{background:var(--bg);border:1px solid #222;border-radius:4px;padding:12px;margin-bottom:10px}
+.action-group h4{font-size:11px;margin-bottom:8px;color:var(--green)}
+#chamber-footer{background:var(--bg2);border-top:2px solid var(--chamber-border);padding:10px 20px;display:flex;align-items:center;gap:16px}
+#chamber-footer .readiness{flex:1;font-size:11px}
+#chamber-footer .stage-controls{display:flex;gap:8px}
+
+/* --- POST-BURN overlay --- */
+#burn-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+#burn-overlay.visible{display:flex}
+#burn-overlay h2{font-size:16px;letter-spacing:2px;margin-bottom:20px}
+#burn-overlay .score{font-size:48px;font-weight:bold;margin-bottom:10px}
+#burn-overlay .detail{color:var(--fg2);font-size:12px;margin-bottom:30px;max-width:400px}
+
+/* entry rows */
+.entry-row{padding:8px 10px;border-bottom:1px solid #1a1a2e;display:flex;gap:10px;align-items:flex-start}
+.entry-row:hover{background:rgba(255,255,255,.02)}
+.entry-kind{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--blue);min-width:110px;padding-top:2px}
+.entry-content{flex:1;font-size:12px;line-height:1.5;color:var(--fg)}
+.entry-meta{font-size:10px;color:var(--fg2);display:flex;gap:8px;min-width:80px;justify-content:flex-end}
+.entry-disputed{color:var(--red);font-size:10px;font-weight:bold}
+.conn-row{padding:5px 10px;font-size:11px;color:var(--fg2);border-bottom:1px solid #111}
+.conn-label{color:var(--yellow);font-weight:bold}
+</style>
+</head>
+<body>
+
+<!-- ==================== LOBBY ==================== -->
+<div id="lobby">
+  <h1>CHAMBERS</h1>
+  <div class="subtitle">Thinking rooms that self-destruct</div>
+
+  <div class="create-box">
+    <h2>Open a Chamber</h2>
+    <div class="field">
+      <label>Chamber Design</label>
+      <select id="f-grammar"><option value="decision_chamber_v1">Decision Chamber</option></select>
+    </div>
+    <div class="field">
+      <label>Question</label>
+      <input id="f-objective" type="text" placeholder="What are you deciding?">
+    </div>
+    <div class="btn-row">
+      <button class="primary" onclick="openChamber()">Open Chamber</button>
+      <button onclick="loadDemo()">Load Demo</button>
+    </div>
+    <div id="create-result"></div>
+  </div>
+
+  <div id="archive-section">
+    <h2>Archive — Survivors from past chambers</h2>
+    <div id="archive-list"><span style="color:var(--fg2)">No survivors yet.</span></div>
+  </div>
+</div>
+
+<!-- ==================== CHAMBER WIDGET ==================== -->
+<div id="chamber">
+  <div id="chamber-header">
+    <div class="question" id="ch-question"></div>
+    <div class="meta">
+      <span id="ch-stage"></span>
+      <span id="ch-counts" style="color:var(--fg2)"></span>
+    </div>
+    <button class="danger" onclick="showBurnDialog()">Burn</button>
+  </div>
+
+  <div id="chamber-body">
+    <div id="entries-panel">
+      <h3>Entries</h3>
+      <div id="entries-list"></div>
+      <div style="margin-top:12px">
+        <h3>Connections</h3>
+        <div id="connections-list"></div>
+      </div>
+    </div>
+
+    <div id="moves-panel">
+      <h3>Moves</h3>
+      <div id="moves-list"></div>
+      <div id="move-result"></div>
+    </div>
+  </div>
+
+  <div id="chamber-footer">
+    <div class="readiness" id="ch-readiness"></div>
+    <div class="stage-controls" id="ch-stage-controls"></div>
+  </div>
+</div>
+
+<!-- ==================== BURN OVERLAY ==================== -->
+<div id="burn-overlay">
+  <h2>CHAMBER BURNED</h2>
+  <div class="score" id="burn-score"></div>
+  <div class="detail" id="burn-detail"></div>
+  <div id="burn-survivor" style="margin-bottom:20px"></div>
+  <button onclick="exitBurn()">Return to Lobby</button>
+</div>
+
+<script>
+'use strict';
+let currentWorldId = null;
+let chamberData = {}; // cached from last refresh: {world, summary, graph, convergence}
+
+window.onerror = function(msg, src, line) {
+  console.error('JS Error:', msg, 'line', line);
+  const el = document.getElementById('create-result') || document.getElementById('move-result');
+  if (el) el.innerHTML = '<div class="result err">Error: ' + msg + ' (line ' + line + ')</div>';
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('Promise rejection:', e.reason);
+});
+
+// --- API ---
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    let msg;
+    try { msg = JSON.parse(text).error || text; } catch(_) { msg = text || ('HTTP ' + res.status); }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function truncId(id) { return id ? id.substring(0, 10) : '-'; }
+
+function resultHtml(cls, text) { return '<div class="result ' + cls + '">' + esc(text) + '</div>'; }
+
+const phaseMap = {Active:'exploring', ConvergenceReview:'reviewing', Finalization:'finalizing', Terminated:'destroyed', Created:'created'};
+
+function stageBadge(phase) {
+  const name = phaseMap[phase] || phase;
+  return '<span class="badge ' + name + '">' + name + '</span>';
+}
+
+const fateMap = {Temporary:'burns', Intermediate:'burns', Candidate:'might survive', Preservable:'survives'};
+
+function entryContent(payload) {
+  if (!payload || typeof payload !== 'object') return String(payload || '');
+  return payload.statement || payload.description || payload.decision || payload.summary || payload.question ||
+    Object.values(payload).find(v => typeof v === 'string' && v.length > 0) || JSON.stringify(payload).substring(0, 80);
+}
+
+// ==================== LOBBY ====================
+
+async function openChamber() {
+  const grammar = document.getElementById('f-grammar').value;
+  const objective = document.getElementById('f-objective').value.trim();
+  if (!objective) { document.getElementById('create-result').innerHTML = resultHtml('err', 'Enter a question'); return; }
+  try {
+    const data = await api('POST', '/api/worlds', { grammar_id: grammar, objective });
+    currentWorldId = data.world_id;
+    enterChamber();
+  } catch(e) {
+    document.getElementById('create-result').innerHTML = resultHtml('err', e.message);
+  }
+}
+
+// Kill browser history entirely — chambers leave no navigation trace.
+// Push a dummy entry on load, then every popstate pushes again,
+// making back/forward a no-op that always lands here.
+history.pushState(null, '', '/');
+window.addEventListener('popstate', function() {
+  history.pushState(null, '', '/');
+});
+
+function enterChamber() {
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('chamber').classList.add('open');
+  refreshChamber();
+}
+
+function exitToLobby() {
+  document.getElementById('chamber').classList.remove('open');
+  document.getElementById('burn-overlay').classList.remove('visible');
+  document.getElementById('lobby').style.display = '';
+  currentWorldId = null;
+  chamberData = {};
+  loadArchive();
+}
+
+async function loadArchive() {
+  const el = document.getElementById('archive-list');
+  try {
+    const artifacts = await api('GET', '/api/vault');
+    const list = artifacts.artifacts || artifacts;
+    if (!list || list.length === 0) {
+      el.innerHTML = '<span style="color:var(--fg2)">No survivors yet.</span>';
+      return;
+    }
+    let h = '<table><tr><th>Kind</th><th>Content</th><th>From Chamber</th><th>Preserved At</th></tr>';
+    for (const a of list) {
+      const content = entryContent(a.payload || {});
+      const wid = typeof a.source_world_id === 'object' ? JSON.stringify(a.source_world_id) : a.source_world_id;
+      h += '<tr><td>' + esc(a.artifact_class) + '</td><td style="max-width:300px">' + esc(content) + '</td>' +
+        '<td style="color:var(--fg2)">' + truncId(wid) + '</td><td style="color:var(--fg2)">' + esc(a.sealed_at) + '</td></tr>';
+    }
+    h += '</table>';
+    el.innerHTML = h;
+  } catch(_) {}
+}
+
+// Load archive on start
+loadArchive();
+
+// ==================== CHAMBER ====================
+
+async function refreshChamber() {
+  if (!currentWorldId) return;
+  try {
+    const [world, summary, graph, conv] = await Promise.all([
+      api('GET', '/api/worlds/' + currentWorldId),
+      api('GET', '/api/worlds/' + currentWorldId + '/summary'),
+      api('GET', '/api/worlds/' + currentWorldId + '/graph'),
+      api('GET', '/api/worlds/' + currentWorldId + '/convergence'),
+    ]);
+    chamberData = { world, summary, graph, conv };
+    renderChamber();
+  } catch(e) {
+    // World might be burned/gone
+    if (e.message && (e.message.includes('not found') || e.message.includes('terminated'))) {
+      return;
+    }
+    console.error('refresh error:', e);
+  }
+}
+
+function renderChamber() {
+  const { world, summary, graph, conv } = chamberData;
+  if (!world) return;
+
+  // Header
+  document.getElementById('ch-question').textContent = world.objective;
+  document.getElementById('ch-stage').innerHTML = stageBadge(world.lifecycle_phase);
+  document.getElementById('ch-counts').textContent = summary.object_count + ' entries · ' + summary.link_count + ' connections';
+
+  // Entries
+  renderEntries(graph);
+
+  // Moves
+  renderMoves(world.lifecycle_phase, graph);
+
+  // Footer readiness + stage controls
+  renderFooter(world.lifecycle_phase, conv);
+}
+
+function renderEntries(graph) {
+  const el = document.getElementById('entries-list');
+  const connEl = document.getElementById('connections-list');
+
+  if (!graph.nodes || graph.nodes.length === 0) {
+    el.innerHTML = '<div style="color:var(--fg2);padding:10px">No entries yet. Use the moves panel to add entries.</div>';
+    connEl.innerHTML = '';
+    return;
+  }
+
+  // Build ID→label lookup
+  const labels = {};
+  for (const n of graph.nodes) {
+    labels[n.id] = n.object_type + ': ' + (entryContent(n.payload) || '').substring(0, 40);
+  }
+
+  let h = '';
+  // Group by type
+  const byType = {};
+  for (const n of graph.nodes) {
+    if (!byType[n.object_type]) byType[n.object_type] = [];
+    byType[n.object_type].push(n);
+  }
+
+  for (const [type, nodes] of Object.entries(byType)) {
+    for (const n of nodes) {
+      const content = entryContent(n.payload);
+      const fate = fateMap[n.lifecycle_class] || n.lifecycle_class;
+      h += '<div class="entry-row">' +
+        '<div class="entry-kind">' + esc(type) + '</div>' +
+        '<div class="entry-content">' + esc(content) +
+          (n.challenged ? ' <span class="entry-disputed">[disputed]</span>' : '') +
+        '</div>' +
+        '<div class="entry-meta">' +
+          '<span title="' + esc(fate) + '">' + (n.preservable ? '🛡' : '') + '</span>' +
+          '<span title="' + esc(n.id) + '">' + truncId(n.id) + '</span>' +
+        '</div></div>';
+    }
+  }
+  el.innerHTML = h;
+
+  // Connections
+  if (graph.edges && graph.edges.length > 0) {
+    let ch = '';
+    for (const e of graph.edges) {
+      ch += '<div class="conn-row">' +
+        esc(labels[e.source] || truncId(e.source)) +
+        ' <span class="conn-label">' + esc(e.link_type) + '</span> ' +
+        esc(labels[e.target] || truncId(e.target)) +
+        '</div>';
+    }
+    connEl.innerHTML = ch;
+  } else {
+    connEl.innerHTML = '<div style="color:var(--fg2);font-size:11px;padding:4px 0">No connections yet.</div>';
+  }
+}
+
+async function renderMoves(phase, graph) {
+  const el = document.getElementById('moves-list');
+  try {
+    const actions = await api('GET', '/api/worlds/' + currentWorldId + '/legal-actions');
+    const primitives = actions.primitives || actions;
+    const objectIds = (graph.nodes || []).map(n => ({
+      id: n.id, type: n.object_type, preservable: n.preservable,
+      label: n.object_type + ': ' + (entryContent(n.payload) || '').substring(0, 30)
+    }));
+    const preservable = objectIds.filter(o => o.preservable);
+    let h = '';
+
+    if (primitives.includes('CreateObject')) {
+      const types = ['premise','support_statement','constraint','risk','upside','contradiction','alternative','recommendation','decision_summary'];
+      h += '<div class="action-group"><h4>Add Entry</h4>' +
+        '<div class="field"><label>Kind</label><select id="a-type">' +
+          types.map(t => '<option value="' + t + '">' + t + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Fate</label><select id="a-class">' +
+          '<option value="Temporary">burns</option><option value="Intermediate">burns</option>' +
+          '<option value="Candidate">might survive</option><option value="Preservable">survives</option></select></div>' +
+        '<div class="field"><label>Content (JSON)</label><textarea id="a-payload">{"statement": ""}</textarea></div>' +
+        '<div class="field"><label><input type="checkbox" id="a-preservable"> Can survive burn?</label></div>' +
+        '<button class="primary" onclick="doCreate()">Add</button></div>';
+    }
+
+    if (primitives.includes('LinkObjects') && objectIds.length >= 2) {
+      h += '<div class="action-group"><h4>Connect</h4>' +
+        '<div class="grid2"><div class="field"><label>From</label><select id="a-src">' +
+          objectIds.map(o => '<option value="' + o.id + '">' + esc(o.label) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>To</label><select id="a-tgt">' +
+          objectIds.map(o => '<option value="' + o.id + '">' + esc(o.label) + '</option>').join('') + '</select></div></div>' +
+        '<div class="field"><label>Type</label><select id="a-link">' +
+          '<option>supports</option><option>constrains</option><option>risks</option><option>benefits</option>' +
+          '<option>contradicts</option><option>alternative_to</option><option>synthesized_from</option><option>based_on</option></select></div>' +
+        '<button onclick="doLink()">Connect</button></div>';
+    }
+
+    if (primitives.includes('ChallengeObject') && objectIds.length > 0) {
+      h += '<div class="action-group"><h4>Dispute</h4>' +
+        '<div class="field"><label>Entry</label><select id="a-disp-tgt">' +
+          objectIds.map(o => '<option value="' + o.id + '">' + esc(o.label) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Why?</label><input id="a-disp-text" type="text" placeholder="What\'s wrong with this?"></div>' +
+        '<button onclick="doDispute()">Dispute</button></div>';
+    }
+
+    if (primitives.includes('SealArtifact') && (preservable.length > 0 || objectIds.length > 0)) {
+      const targets = preservable.length > 0 ? preservable : objectIds;
+      h += '<div class="action-group"><h4>Preserve Decision</h4>' +
+        '<div class="field"><label>Which decision?</label><select id="a-seal-tgt">' +
+          targets.map(o => '<option value="' + o.id + '">' + esc(o.label) + '</option>').join('') + '</select></div>' +
+        '<button class="primary" onclick="doSeal()">Preserve</button></div>';
+    }
+
+    if (!h) h = '<div style="color:var(--fg2);padding:10px">No moves available in this stage.</div>';
+    el.innerHTML = h;
+  } catch(e) {
+    el.innerHTML = resultHtml('err', e.message);
+  }
+}
+
+function renderFooter(phase, conv) {
+  const rEl = document.getElementById('ch-readiness');
+  const sEl = document.getElementById('ch-stage-controls');
+
+  // Readiness
+  const v = conv.convergence_validated;
+  let missing = '';
+  if (conv.mandatory_type_satisfaction) {
+    for (const [t, ok] of Object.entries(conv.mandatory_type_satisfaction)) {
+      const name = t === 'decision_summary' ? 'decision' : t;
+      if (!ok) missing += '<span style="color:var(--red)">' + esc(name) + ' missing</span> ';
+    }
+  }
+  if (conv.validation_failure_reason && v === false) {
+    rEl.innerHTML = '<span style="color:var(--red)">Not ready:</span> ' + missing;
+  } else if (v === true) {
+    rEl.innerHTML = '<span style="color:var(--green)">Ready to finalize</span>';
+  } else {
+    rEl.innerHTML = '<span style="color:var(--fg2)">Readiness: pending</span>';
+  }
+
+  // Stage controls
+  let btns = '';
+  if (phase === 'Active') {
+    btns = '<button onclick="doAdvance(\'ConvergenceReview\')">Move to Review</button>';
+  } else if (phase === 'ConvergenceReview') {
+    btns = '<button onclick="doAdvance(\'Finalization\')">Move to Finalizing</button>' +
+      '<button onclick="doAdvance(\'Active\')">Back to Exploring</button>';
+  }
+  sEl.innerHTML = btns;
+}
+
+// --- Move handlers ---
+let lastResult = '';
+
+async function doMove(operation) {
+  const el = document.getElementById('move-result');
+  try {
+    const data = await api('POST', '/api/worlds/' + currentWorldId + '/submit', operation);
+    lastResult = resultHtml('ok', JSON.stringify(data, null, 2));
+    await refreshChamber();
+    document.getElementById('move-result').innerHTML = lastResult;
+  } catch(e) {
+    el.innerHTML = resultHtml('err', e.message);
+  }
+}
+
+function doCreate() {
+  let payload;
+  try { payload = JSON.parse(document.getElementById('a-payload').value); }
+  catch(e) { document.getElementById('move-result').innerHTML = resultHtml('err', 'Invalid JSON: ' + e.message); return; }
+  doMove({ CreateObject: {
+    object_type: document.getElementById('a-type').value,
+    payload: payload,
+    lifecycle_class: document.getElementById('a-class').value,
+    preservable: document.getElementById('a-preservable').checked
+  }});
+}
+
+function doLink() {
+  doMove({ LinkObjects: {
+    source_id: document.getElementById('a-src').value,
+    target_id: document.getElementById('a-tgt').value,
+    link_type: document.getElementById('a-link').value
+  }});
+}
+
+function doDispute() {
+  doMove({ ChallengeObject: {
+    target_id: document.getElementById('a-disp-tgt').value,
+    challenge_text: document.getElementById('a-disp-text').value
+  }});
+}
+
+function doSeal() {
+  doMove({ SealArtifact: {
+    target_id: document.getElementById('a-seal-tgt').value,
+    authorization: { HumanConfirmed: { confirmer: 'operator' } }
+  }});
+}
+
+async function doAdvance(target) {
+  try {
+    await api('POST', '/api/worlds/' + currentWorldId + '/advance', { phase: target });
+    await refreshChamber();
+  } catch(e) {
+    document.getElementById('move-result').innerHTML = resultHtml('err', e.message);
+  }
+}
+
+// --- Burn ---
+function showBurnDialog() {
+  if (!currentWorldId) return;
+  const phase = chamberData.world ? chamberData.world.lifecycle_phase : '';
+  const hasArtifact = chamberData.graph && chamberData.graph.nodes &&
+    chamberData.graph.nodes.some(n => n.preservable);
+
+  let msg = 'This will destroy the chamber and everything in it.';
+  let mode = 'AbortBurn';
+  if (phase === 'Finalization') {
+    mode = 'ConvergedPreserving';
+    msg = 'Burn the chamber. Your preserved decision will survive in the archive.';
+  }
+
+  if (confirm(msg + '\n\nProceed?')) {
+    executeBurn(mode);
+  }
+}
+
+async function executeBurn(mode) {
+  try {
+    await api('POST', '/api/worlds/' + currentWorldId + '/burn', { mode: mode });
+    const residue = await api('GET', '/api/worlds/' + currentWorldId + '/residue');
+    const artifacts = await api('GET', '/api/vault');
+    const survivors = (artifacts.artifacts || artifacts).filter(a => {
+      const wid = typeof a.source_world_id === 'object' ? JSON.stringify(a.source_world_id) : a.source_world_id;
+      return wid === currentWorldId;
+    });
+
+    // Show burn overlay
+    const score = residue.residue_score;
+    document.getElementById('burn-score').textContent = score.toFixed(2);
+    document.getElementById('burn-score').style.color = score === 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('burn-detail').innerHTML =
+      (score === 0 ? 'Clean burn — no traces remain.' : 'Traces detected.') + '<br><br>' +
+      'Encryption key destroyed: ' + (residue.crypto_key_destroyed ? '<span style="color:var(--green)">yes</span>' : '<span style="color:var(--red)">no</span>') + '<br>' +
+      'Chamber state remains: ' + (residue.state_engine_has_world ? '<span style="color:var(--red)">yes</span>' : '<span style="color:var(--green)">no</span>') + '<br>' +
+      'Log entries: ' + residue.substrate_event_count;
+
+    if (survivors.length > 0) {
+      document.getElementById('burn-survivor').innerHTML =
+        '<div style="background:var(--bg2);border:1px solid var(--green);border-radius:6px;padding:16px;text-align:left;max-width:400px">' +
+        '<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:8px">Survivor</div>' +
+        '<div style="color:var(--fg)">' + esc(entryContent(survivors[0].payload || {})) + '</div></div>';
+    } else {
+      document.getElementById('burn-survivor').innerHTML =
+        '<div style="color:var(--fg2)">No survivors. Everything was destroyed.</div>';
+    }
+
+    document.getElementById('burn-overlay').classList.add('visible');
+  } catch(e) {
+    alert('Burn error: ' + e.message);
+  }
+}
+
+function exitBurn() {
+  exitToLobby();
+}
+
+// ==================== DEMO ====================
+
+async function loadDemo() {
+  const el = document.getElementById('create-result');
+  el.innerHTML = '<div class="result warn">Loading demo...</div>';
+  try {
+    const w = await api('POST', '/api/worlds', {
+      grammar_id: 'decision_chamber_v1',
+      objective: 'Should we build our own authentication system or buy an identity provider?'
+    });
+    currentWorldId = w.world_id;
+    const ids = {};
+
+    async function add(key, type, payload, lc, pres) {
+      const r = await api('POST', '/api/worlds/' + currentWorldId + '/submit',
+        { CreateObject: { object_type: type, payload: payload, lifecycle_class: lc || 'Temporary', preservable: pres || false }});
+      ids[key] = r.ObjectCreated;
+    }
+    async function link(src, tgt, type) {
+      await api('POST', '/api/worlds/' + currentWorldId + '/submit',
+        { LinkObjects: { source_id: ids[src], target_id: ids[tgt], link_type: type }});
+    }
+
+    el.innerHTML = '<div class="result warn">Adding facts...</div>';
+    await add('p1', 'premise', {statement: 'Our current auth is a custom PHP implementation from 2016 with known security issues.', source: 'security audit Q1'});
+    await add('p2', 'premise', {statement: 'Engineering team has 2 developers with identity/auth experience.', source: 'team lead'});
+    await add('p3', 'premise', {statement: 'Three customer contracts require SOC2 compliance by end of year.', source: 'sales team'});
+
+    el.innerHTML = '<div class="result warn">Adding constraints...</div>';
+    await add('c1', 'constraint', {description: 'Must achieve SOC2 Type II compliance within 8 months.', severity: 'hard'});
+    await add('c2', 'constraint', {description: 'Migration must not cause more than 4 hours of downtime.', severity: 'hard'});
+    await add('c3', 'constraint', {description: 'Annual cost must stay under $50,000.', severity: 'soft'});
+
+    el.innerHTML = '<div class="result warn">Adding options...</div>';
+    await add('a1', 'alternative', {description: 'Auth0 — managed identity platform', pros: 'Fast to implement, SOC2 certified, handles MFA/SSO out of box', cons: 'Vendor lock-in, per-user pricing scales badly'}, 'Intermediate');
+    await add('a2', 'alternative', {description: 'Build custom with Passport.js + PostgreSQL', pros: 'Full control, no vendor dependency, one-time cost', cons: '6+ months to build, security risk during development'}, 'Intermediate');
+    await add('a3', 'alternative', {description: 'Keycloak self-hosted', pros: 'Open source, full control, no per-user cost', cons: 'Complex to operate, requires dedicated DevOps'}, 'Intermediate');
+
+    el.innerHTML = '<div class="result warn">Adding risks...</div>';
+    await add('r1', 'risk', {description: 'Custom build takes 6+ months, missing SOC2 deadline — loss of $400K ARR.', likelihood: 'high', impact: 'critical'});
+    await add('r2', 'risk', {description: 'Auth0 per-user pricing exceeds budget at 50K+ users (month 18).', likelihood: 'medium', impact: 'medium'});
+    await add('r3', 'risk', {description: 'Keycloak operational complexity causes auth outages in first 6 months.', likelihood: 'medium', impact: 'high'});
+
+    el.innerHTML = '<div class="result warn">Adding upsides...</div>';
+    await add('u1', 'upside', {description: 'Auth0 gets us SOC2-ready in under 2 months, unblocking all 3 contracts immediately.', magnitude: 'high'});
+    await add('u2', 'upside', {description: 'Keycloak gives full data sovereignty for EU expansion planned Q3.', magnitude: 'medium'});
+
+    el.innerHTML = '<div class="result warn">Connecting entries...</div>';
+    await link('r1', 'a2', 'risks');
+    await link('r2', 'a1', 'risks');
+    await link('r3', 'a3', 'risks');
+    await link('u1', 'a1', 'benefits');
+    await link('u2', 'a3', 'benefits');
+
+    el.innerHTML = '';
+    enterChamber();
+  } catch(e) {
+    el.innerHTML = resultHtml('err', 'Demo failed: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>

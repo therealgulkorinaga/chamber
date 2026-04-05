@@ -1,0 +1,214 @@
+{
+  "grammar_id": "decision_chamber_v1",
+  "name": "Decision Chamber",
+  "description": "A chamber for structured decision-making. Only the final decision_summary may survive.",
+  "objective_class": "decision_objective",
+  "object_types": {
+    "decision_objective": {
+      "type_name": "decision_objective",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "context": { "type": "string" }
+        },
+        "required": ["question"]
+      },
+      "max_payload_bytes": 10000,
+      "transform_set": ["CondenseObject"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "premise": {
+      "type_name": "premise",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "statement": { "type": "string" },
+          "source": { "type": "string" }
+        },
+        "required": ["statement"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "support_statement": {
+      "type_name": "support_statement",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "statement": { "type": "string" },
+          "strength": { "type": "string" }
+        },
+        "required": ["statement"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "constraint": {
+      "type_name": "constraint",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "severity": { "type": "string" }
+        },
+        "required": ["description"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "risk": {
+      "type_name": "risk",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "likelihood": { "type": "string" },
+          "impact": { "type": "string" }
+        },
+        "required": ["description"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects", "RankSet"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "upside": {
+      "type_name": "upside",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "magnitude": { "type": "string" }
+        },
+        "required": ["description"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects", "RankSet"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "contradiction": {
+      "type_name": "contradiction",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "between": { "type": "array", "items": { "type": "string" } },
+          "resolved": { "type": "boolean" }
+        },
+        "required": ["description"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects"],
+      "default_lifecycle_class": "Temporary",
+      "can_be_preservable": false
+    },
+    "alternative": {
+      "type_name": "alternative",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "pros": { "type": "string" },
+          "cons": { "type": "string" }
+        },
+        "required": ["description"]
+      },
+      "max_payload_bytes": 5000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects", "RankSet", "GenerateAlternative"],
+      "default_lifecycle_class": "Intermediate",
+      "can_be_preservable": false
+    },
+    "recommendation": {
+      "type_name": "recommendation",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "rationale": { "type": "string" },
+          "confidence": { "type": "string" }
+        },
+        "required": ["summary"]
+      },
+      "max_payload_bytes": 10000,
+      "transform_set": ["ChallengeObject", "CondenseObject", "LinkObjects", "SynthesizeSet"],
+      "default_lifecycle_class": "Candidate",
+      "can_be_preservable": false
+    },
+    "decision_summary": {
+      "type_name": "decision_summary",
+      "payload_schema": {
+        "type": "object",
+        "properties": {
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" },
+          "alternatives_considered": { "type": "integer" },
+          "risks_accepted": { "type": "string" },
+          "constraints_satisfied": { "type": "string" }
+        },
+        "required": ["decision", "rationale"]
+      },
+      "max_payload_bytes": 20000,
+      "transform_set": ["CondenseObject", "SealArtifact"],
+      "default_lifecycle_class": "Preservable",
+      "can_be_preservable": true
+    }
+  },
+  "phase_primitives": {
+    "Created": ["CreateObject"],
+    "Active": [
+      "CreateObject", "LinkObjects", "ChallengeObject",
+      "GenerateAlternative", "RankSet", "SynthesizeSet", "CondenseObject",
+      "TriggerBurn"
+    ],
+    "ConvergenceReview": [
+      "ChallengeObject", "CondenseObject", "LinkObjects",
+      "TriggerBurn"
+    ],
+    "Finalization": [
+      "SealArtifact", "CondenseObject", "TriggerBurn"
+    ]
+  },
+  "preservable_classes": ["decision_summary"],
+  "allowed_views": ["conversation", "graph", "summary", "burn"],
+  "termination_modes": [
+    {
+      "mode": "ConvergedPreserving",
+      "description": "Preserve one decision_summary and burn all else.",
+      "requires_artifact": true
+    },
+    {
+      "mode": "ConvergedTotalBurn",
+      "description": "Convergence reached but nothing preserved — total burn.",
+      "requires_artifact": false
+    },
+    {
+      "mode": "AbortBurn",
+      "description": "Aborted before convergence — total burn, no artifact.",
+      "requires_artifact": false
+    }
+  ],
+  "convergence_criteria": {
+    "required_types": ["decision_summary"],
+    "challenges_block_convergence": true,
+    "contradictions_block_convergence": true
+  },
+  "permitted_links": [
+    { "link_type": "supports", "source_types": ["support_statement"], "target_types": ["premise", "alternative", "recommendation"] },
+    { "link_type": "constrains", "source_types": ["constraint"], "target_types": ["alternative", "recommendation", "decision_objective"] },
+    { "link_type": "risks", "source_types": ["risk"], "target_types": ["alternative", "recommendation"] },
+    { "link_type": "benefits", "source_types": ["upside"], "target_types": ["alternative", "recommendation"] },
+    { "link_type": "contradicts", "source_types": ["contradiction"], "target_types": ["premise", "support_statement", "alternative"] },
+    { "link_type": "alternative_to", "source_types": ["alternative"], "target_types": ["alternative", "recommendation", "decision_objective"] },
+    { "link_type": "synthesized_from", "source_types": ["recommendation", "decision_summary"], "target_types": ["premise", "support_statement", "constraint", "risk", "upside", "alternative"] },
+    { "link_type": "based_on", "source_types": ["decision_summary"], "target_types": ["recommendation"] }
+  ]
+}

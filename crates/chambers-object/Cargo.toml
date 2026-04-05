@@ -1,0 +1,12 @@
+[package]
+name = "chambers-object"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chambers-types = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

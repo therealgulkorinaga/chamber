@@ -1,0 +1,13 @@
+[package]
+name = "chambers-vault"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-crypto = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,55 @@
+{
+  "task_id": "cloud-provider-hipaa-v1",
+  "runs_per_condition": 10,
+  "h1": {
+    "Supported": {
+      "effect_size": 0.0,
+      "detail": "Chambers: obj=0.000 edge=0.000 meta=0.0. VM: obj=0.000 edge=0.000 meta=3.0. Chambers achieves zero recoverable state; VM retains metadata."
+    }
+  },
+  "h2": {
+    "Inconclusive": {
+      "detail": "No comprehension data collected yet. Requires user study."
+    }
+  },
+  "h3": {
+    "Supported": {
+      "effect_size": 1.0,
+      "detail": "Chambers: reconstruction infeasible (crypto burn). VM: reconstruction possible in 300s. MicroVM: 600s."
+    }
+  },
+  "overall": "THESIS PARTIALLY SUPPORTED: 2/3 hypotheses pass. Further investigation needed.",
+  "comparison": {
+    "task_id": "cloud-provider-hipaa-v1",
+    "runs_per_condition": 10,
+    "conditions": [
+      {
+        "condition": "Chambers",
+        "mean_recoverable_object_fraction": 0.0,
+        "std_recoverable_object_fraction": 0.0,
+        "mean_recoverable_edge_fraction": 0.0,
+        "std_recoverable_edge_fraction": 0.0,
+        "mean_metadata_count": 0.0,
+        "mean_reconstruction_time": null
+      },
+      {
+        "condition": "DisposableVM",
+        "mean_recoverable_object_fraction": 0.0,
+        "std_recoverable_object_fraction": 0.0,
+        "mean_recoverable_edge_fraction": 0.0,
+        "std_recoverable_edge_fraction": 0.0,
+        "mean_metadata_count": 3.0,
+        "mean_reconstruction_time": 300.0
+      },
+      {
+        "condition": "ConstrainedMicroVM",
+        "mean_recoverable_object_fraction": 0.0,
+        "std_recoverable_object_fraction": 0.0,
+        "mean_recoverable_edge_fraction": 0.0,
+        "std_recoverable_edge_fraction": 0.0,
+        "mean_metadata_count": 4.0,
+        "mean_reconstruction_time": 600.0
+      }
+    ]
+  }
+}

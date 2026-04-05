@@ -1,0 +1,25 @@
+[package]
+name = "chambers-app"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "chambers"
+path = "src/main.rs"
+
+[dependencies]
+chambers-types = { workspace = true }
+chambers-runtime = { workspace = true }
+chambers-crypto = { workspace = true }
+chambers-operation = { workspace = true }
+chambers-burn = { workspace = true }
+chambers-state = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+tao = "0.35"
+wry = "0.55"
+axum = { workspace = true }
+tokio = { workspace = true }
+
