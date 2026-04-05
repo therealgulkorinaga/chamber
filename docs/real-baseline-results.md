@@ -28,34 +28,39 @@ Previous benchmarks used simulated baselines with hardcoded metadata counts. Thi
 
 ## What Real Residue Was Found
 
-### Chambers (0 metadata entries)
-Nothing. Zero traces in any channel. Audit shows only 2 substrate events (WorldCreated + WorldDestroyed) which are expected and by design.
+### Chambers (2 existence-level metadata entries)
+
+The substrate retains 2 events: WorldCreated and WorldDestroyed. These reveal that a world existed and was burned. They reveal no content, no structure, no behavioral trace. They are by design — documented in the grammar, predictable to users.
 
 ### Disposable VM (2 metadata entries per run)
 
 Every run left exactly 2 traces:
 
-| Trace | Source | What it reveals |
-|-------|--------|----------------|
-| `unified_log: log run noninteractive...` | macOS unified log | A `log` command was executed (the residue scanner itself). Reveals that something queried the log system. |
-| `fs_metadata: /tmp modified recently` | APFS filesystem | The `/tmp` directory's modification timestamp changed, indicating a recent file creation+deletion. |
+| Trace | Source | What it reveals | Observer effect? |
+|-------|--------|----------------|-----------------|
+| `unified_log: log run noninteractive...` | macOS unified log | A `log` command was executed | **Yes** — this is the residue scanner's own activity, not the task's. The measurement instrument created this entry. |
+| `fs_metadata: /tmp modified recently` | APFS filesystem | The `/tmp` directory's modification timestamp changed, indicating a recent file creation+deletion. | No — intrinsic to the task |
+
+**Observer effect note:** 1 of the VM's 2 metadata entries is an artifact of the measurement process (the `log show` command used by the residue scanner is itself logged by the unified log). The VM's intrinsic task residue is therefore **1 entry**, not 2. This doesn't change H1's outcome but is a methodological nuance.
 
 The file content itself was successfully deleted — no premises, constraints, risks, or decision text was recoverable from the filesystem. But the OS-level metadata reveals that *something* happened in `/tmp`.
 
 ### Docker microVM (3-8 metadata entries per run, mean 5.3)
 
-| Trace | Source | What it reveals |
-|-------|--------|----------------|
-| `docker_event: create` | Docker daemon event log | A container was created |
-| `docker_event: attach` | Docker daemon event log | A process attached to the container |
-| `docker_event: start` | Docker daemon event log | The container started |
-| `docker_event: die` | Docker daemon event log | The container exited |
-| `docker_event: destroy` | Docker daemon event log | The container was removed |
-| `docker_root: /var/lib/docker` | Docker daemon | Docker's metadata store exists on disk |
-| `unified_log: log run...` | macOS unified log | Log query was executed |
-| `docker_image_cache: alpine:latest (13.6MB)` | Docker image store | The base image is cached on disk (13.6MB) |
+| Trace | Source | What it reveals | Observer effect? |
+|-------|--------|----------------|-----------------|
+| `docker_event: create` | Docker daemon event log | A container was created | No — intrinsic |
+| `docker_event: attach` | Docker daemon event log | A process attached to the container | No — intrinsic |
+| `docker_event: start` | Docker daemon event log | The container started | No — intrinsic |
+| `docker_event: die` | Docker daemon event log | The container exited | No — intrinsic |
+| `docker_event: destroy` | Docker daemon event log | The container was removed | No — intrinsic |
+| `docker_root: /var/lib/docker` | Docker daemon | Docker's metadata store exists on disk | No — intrinsic |
+| `unified_log: log run...` | macOS unified log | Log query was executed | **Yes** — observer effect |
+| `docker_image_cache: alpine:latest (13.6MB)` | Docker image store | The base image is cached on disk (13.6MB) | No — intrinsic |
 
-Docker leaves more metadata than the filesystem baseline because it has its own event logging system. The container's lifecycle (create → attach → start → die → destroy) is recorded in Docker's event log. The base image (`alpine:latest`) persists as a cached layer.
+**Observer-corrected count:** Docker's intrinsic residue is ~4.3 entries (subtracting the unified log observer effect). Still higher than the simulation predicted (4 hardcoded).
+
+Docker leaves more metadata than the filesystem baseline because it has its own event logging system. The container's lifecycle (create → attach → start → die → destroy) is recorded by the Docker daemon. The base image (`alpine:latest`) persists as a cached layer.
 
 No task content was recoverable. The tmpfs-backed `/data` directory was freed when the container exited. But the metadata trail is richer than the simple filesystem case.
 
@@ -71,16 +76,20 @@ No task content was recoverable. The tmpfs-backed `/data` directory was freed wh
 |--------|---------|-----------|--------------|
 | Content residue | 0 | 0 | 0 |
 | Structural residue | 0 | 0 | 0 |
-| Metadata entries | **0** | 2 | 5.3 |
-| Reconstruction time | **∞** | 180s | 287s |
+| Existence-level metadata | **2** (by design) | 2 (1 intrinsic + 1 observer) | 5.3 (~4.3 intrinsic + 1 observer) |
+| Reconstruction time | **∞** | 180s (estimated) | 287s (estimated) |
 
-Chambers has strictly less residue than both real baselines. All three conditions successfully destroy file/object content. The difference is in metadata: Chambers leaves zero metadata (Tier 2 audit events burned). The VM leaves filesystem timestamps. Docker leaves event logs + image cache.
+**Consistent metadata counting:** All three conditions retain existence-level metadata — traces that reveal "something happened" without revealing content. Chambers retains 2 events (WorldCreated + WorldDestroyed) which are by design, documented in the grammar, and predictable. The VM retains 1 intrinsic trace (/tmp timestamp) + 1 observer-effect trace. Docker retains ~4.3 intrinsic traces (event log + metadata store + image cache) + 1 observer-effect trace.
+
+The difference is not just in count but in predictability: Chambers' residue is declared in advance by the architecture. The baselines' residue is incidental and unpredictable — a user cannot enumerate what the host OS or Docker daemon will retain. This is a lifecycle-legibility argument as much as a residue-count argument.
+
+**Reconstruction time note:** The 180s (VM) and 287s (Docker) figures are *estimates based on surviving traces*, not measured reconstruction attempts. An evaluator did not actually attempt to reconstruct the task from metadata. The estimates assume: forensic tool setup (120-180s base) + per-trace analysis time. A real reconstruction protocol would strengthen these numbers. Chambers' ∞ is structural — reconstruction requires breaking AES-256, which is computationally infeasible regardless of time.
 
 ### H3: Fewer reconstructable intermediate traces
 
 **SUPPORTED.**
 
-Chambers reconstruction is infeasible (K_w destroyed, all state encrypted). VM reconstruction requires forensic tools (180s estimated — filesystem journal analysis, log correlation). Docker reconstruction requires Docker event log analysis + image layer inspection (287s estimated).
+Chambers reconstruction is infeasible (K_w destroyed, all state encrypted under destroyed key). VM reconstruction is possible from surviving metadata (estimated 180s — filesystem timestamp correlation, unified log analysis). Docker reconstruction is possible from event logs + image cache analysis (estimated 287s). These are estimates, not measured reconstruction times — no reconstruction protocol was executed against the baselines.
 
 ---
 

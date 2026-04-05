@@ -186,7 +186,9 @@ Ten substrate services define, render, constrain, and destroy worlds: World Engi
 
 Capabilities are modeled as both world-scoped and epoch-scoped. A world epoch is a monotonic lifecycle index. Capability tokens are valid only while both the world identifier and epoch identifier remain current. When the lifecycle controller advances the world from one phase to another, it may increment the epoch and invalidate capabilities not re-issued under the new phase.
 
-### 5.4 Burn Engine — Five-Layer Destruction
+### 5.4 Burn Engine — Six-Layer Destruction
+
+*[Updated from v1 — original paper described 5 layers. Implementation added a 6th (audit burn) after the audit layer was identified as a metadata residue channel.]*
 
 Cryptographic burn is the primary security primitive. Physical overwrite is secondary hygiene.
 
@@ -194,7 +196,8 @@ Cryptographic burn is the primary security primitive. Physical overwrite is seco
 2. **Cryptographic** — Destroy K_w. Invalidate unwrap path from K_s. Retained ciphertext becomes unrecoverable.
 3. **Storage** — Delete or dereference temporary objects, indexes, caches, live-world blocks.
 4. **Memory** — Zero or drop in-memory world-state and transient orchestrator context.
-5. **Semantic** — Prevent reconstruction of non-preserved world-state from whatever remains.
+5. **Audit burn** — Destroy world-scoped audit events (Tier 2: phase transitions, convergence, sealing records). Only substrate-scoped events survive (Tier 1: WorldCreated + WorldDestroyed — 2 entries revealing existence only).
+6. **Semantic** — Prevent reconstruction of non-preserved world-state from whatever remains.
 
 Reference key hierarchy: at world creation, the substrate generates a fresh world key K_w, optionally wrapped under a substrate-held sealing key K_s. Live world-state is encrypted under K_w; artifact sealing uses a distinct artifact key K_a. Burn destroys K_w and invalidates any unwrap path before storage hygiene completes.
 
@@ -358,7 +361,7 @@ A chamber boot is security-by-construction: the VM has no capability to leak. Th
 
 ### 9.4 Burn = VM Destruction
 
-1. Substrate executes five-layer burn inside the VM
+1. Substrate executes six-layer burn inside the VM (logical → cryptographic → storage → memory → audit burn → semantic)
 2. K_w is zeroed inside the VM
 3. VM sends "burn complete" signal via virtio control
 4. Host tells the hypervisor to destroy the VM

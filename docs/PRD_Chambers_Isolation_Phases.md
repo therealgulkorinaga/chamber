@@ -290,7 +290,7 @@ No shared memory. No shared filesystem. No network bridge. No clipboard sharing.
 
 **3.3.4 Burn sequence (VM destruction)**
 
-1. Substrate executes 5-layer burn inside the VM (logical → crypto → storage → memory → semantic)
+1. Substrate executes 6-layer burn inside the VM (logical → crypto → storage → memory → audit burn → semantic)
 2. K_w is zeroed inside the VM
 3. VM sends "burn complete" signal via virtio control
 4. Host tells Hypervisor.framework to destroy the VM

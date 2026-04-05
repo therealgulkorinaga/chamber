@@ -29,24 +29,26 @@
 
 Measured with real infrastructure (not simulated):
 
-| Condition | Content residue | Structural residue | Metadata entries | Reconstruction time |
-|-----------|----------------|-------------------|-----------------|-------------------|
-| **Chambers** | **Zero** (encrypted, key destroyed) | **Zero** (graph burned) | **0** | **∞ (infeasible)** |
-| Disposable VM (real filesystem) | Zero (files deleted) | Zero (directory removed) | **2** (unified log + /tmp timestamp) | **180s** |
-| Docker microVM (real container) | Zero (tmpfs freed) | Zero (container removed) | **5.3** (Docker events + image cache + logs) | **287s** |
+| Condition | Content residue | Structural residue | Existence-level metadata | Reconstruction time |
+|-----------|----------------|-------------------|-------------------------|-------------------|
+| **Chambers** | **Zero** (encrypted, key destroyed) | **Zero** (graph burned) | **2** (WorldCreated + WorldDestroyed, by design) | **∞ (infeasible)** |
+| Disposable VM (real filesystem) | Zero (files deleted) | Zero (directory removed) | **2** (1 intrinsic + 1 observer effect) | **180s** (estimated) |
+| Docker microVM (real container) | Zero (tmpfs freed) | Zero (container removed) | **5.3** (~4.3 intrinsic + 1 observer effect) | **287s** (estimated) |
+
+All three conditions retain existence-level metadata — traces revealing "something happened" without revealing content. The difference is in predictability: Chambers' metadata is declared in advance by the architecture (the user knows exactly what will remain). The baselines' metadata is incidental (the user cannot predict what the host OS or Docker daemon will log).
+
+**Observer effect:** The unified log entry in both VM and Docker baselines is the residue scanner's own `log show` command being logged — an artifact of the measurement instrument, not the task. Intrinsic residue (excluding observer effect): VM = 1, Docker ≈ 4.3.
+
+**Reconstruction times are estimates**, not measured reconstruction attempts. No evaluator actually attempted to reconstruct the task from surviving metadata. Chambers' ∞ is structural (requires breaking AES-256).
 
 **What the VM left behind (real, per run):**
-- `unified_log`: macOS unified log recorded that a `log` query command was executed
-- `fs_metadata`: `/tmp` directory modification timestamp changed (indicates recent file creation+deletion)
+- `unified_log`: residue scanner's log query (observer effect)
+- `fs_metadata`: `/tmp` directory modification timestamp changed (intrinsic)
 
 **What Docker left behind (real, per run, 3-8 entries):**
-- `docker_event: create` — Docker daemon recorded container creation
-- `docker_event: attach` — process attachment logged
-- `docker_event: start` — container start logged
-- `docker_event: die` — container exit logged
-- `docker_event: destroy` — container removal logged
-- `docker_root: /var/lib/docker` — Docker's metadata store exists on disk
-- `unified_log` — macOS log query trace
+- `docker_event: create/attach/start/die/destroy` — Docker daemon event log (intrinsic)
+- `docker_root: /var/lib/docker` — Docker's metadata store exists on disk (intrinsic)
+- `unified_log` — residue scanner's log query (observer effect)
 - `docker_image_cache: alpine:latest (13.6MB)` — base image cached on disk
 
 **What Chambers left behind:** Nothing. Zero metadata entries. Tier 2 audit events (phase transitions, convergence, sealing) were destroyed on burn. Only 2 substrate-scoped events survive (WorldCreated + WorldDestroyed) — these are expected and by design, and are not counted as residue because they reveal only "a world existed."
@@ -93,9 +95,16 @@ Automated prediction test with 5 synthetic participant knowledge levels:
 | **Mean Confidence** | 3.8 | 2.8 |
 | **F1 Delta** | **0.783 (78.3% improvement)** | — |
 
-**Structural finding:** Chambers' explicit grammar ("only decision_summary survives") enables InformedUser and above to achieve **perfect F1 = 1.000**. The VM has no equivalent declaration — even Expert confidence is only 3/5 because hidden channels (filesystem journals, swap, host logs) are unknowable. Perfect prediction is **possible** with Chambers and **impossible** with VMs.
+**Why VM F1 = 0.000 across all levels:** The VM scenario defines `actual_survivors = []` (nothing survives file deletion at the object level). The F1 score measures prediction of the *survivor set*. Since nothing survives, any predicted survivor is a false positive, yielding precision = 0 and F1 = 0. The Naive VM user (who thinks "delete = gone" and predicts no survivors) is actually correct — but gets F1 = 0.000 because F1 is undefined when both predicted and actual survivor sets are empty (the implementation returns 0). This is a scoring artifact: the test measures whether users can identify what *crosses the preservation boundary*, not whether they can predict total destruction.
 
-**Caveat:** These are synthetic participants, not real humans. The automated test validates the structural advantage (explicit grammar → predictable outcomes) but does not replace a user study. The comprehension test harness is implemented and ready for human participants.
+The meaningful comparison is not F1 alone but F1 + confidence. The VM Expert gets the right answer (nothing survives at file level) but with low confidence (3/5) because they know hidden channels exist that they can't enumerate. The Chambers Expert gets the right answer with high confidence (5/5) because the grammar declares exactly what survives.
+
+**Structural finding:** Chambers' explicit grammar ("only decision_summary survives") enables InformedUser and above to achieve **perfect F1 = 1.000** with high confidence. The VM has no equivalent declaration — even when VM users predict correctly, their confidence is lower because hidden channels are unknowable. Perfect *confident* prediction is possible with Chambers and impossible with VMs.
+
+**Caveats:**
+1. These are synthetic participants, not real humans. The automated test validates the structural advantage (explicit grammar → predictable outcomes) but does not replace a user study.
+2. The F1 = 0.000 for VM is partly a scoring artifact — the metric penalizes any predicted survivor when nothing survives. A partial-credit scoring model would yield higher VM scores.
+3. The comprehension test harness is implemented and ready for human participants.
 
 ---
 
@@ -156,7 +165,7 @@ Zero Chambers runs were reconstructable across all benchmark runs. All baseline 
 │  │ (5-check)│ │  Engine  │ │  Engine  │ │ (2-tier) │   │
 │  ├──────────┤ ├──────────┤ ├──────────┤ ├──────────┤   │
 │  │   Burn   │ │  Vault   │ │  State   │ │  Crypto  │   │
-│  │ (6-layer)│ │(survivors)│ │(encrypted)│ │(mlock K_w)│   │
+│  │(6-layer*)│ │(survivors)│ │(encrypted)│ │(mlock K_w)│   │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
 ├─────────────────────────────────────────────────────────┤
 │  Encrypted Memory Pool                                    │
@@ -165,6 +174,8 @@ Zero Chambers runs were reconstructable across all benchmark runs. All baseline 
 │  Guard buffer: 8KB, mlock'd, zeroed after every use      │
 │  Scoped access: with_object(id, |plaintext| { ... })     │
 └─────────────────────────────────────────────────────────┘
+
+*Burn layer note: the original paper describes 5 layers (logical, cryptographic, storage, memory, semantic). The implementation adds a 6th layer — audit burn (Tier 2 event destruction) — inserted between memory cleanup and semantic measurement. This was added to resolve the H1 metadata residue finding where the audit layer was identified as a genuine residue channel. The 6-layer sequence is: logical → cryptographic → storage → memory → audit burn → semantic measurement.
 ```
 
 ---
