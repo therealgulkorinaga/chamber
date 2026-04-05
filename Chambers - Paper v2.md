@@ -16,7 +16,11 @@ Rather than treating the application or guest machine as the primary semantic un
 
 This paper proposes Chambers, a world-based, persistence-law-first model in which a permanent substrate generates sealed, temporary computational worlds for bounded tasks. Chambers does not eliminate software that plays an orchestration role; rather, it rejects the application as the primary semantic and persistence unit. A Chamber is defined by typed internal objects, trusted operations, explicit lifecycle constraints, preservation law, and burn semantics that destroy temporary state once a task has converged or aborted.
 
-The paper does not claim universal superiority over disposable virtual machines. Its narrower claim is that Chambers may be over and above VM-based approaches on four axes: semantic residue minimization, lifecycle legibility, preservation narrowness, and legal execution surface. The architecture is meaningful even if the orchestration layer is implemented by a symbolic planner or a smaller model rather than a large language model.
+The paper does not claim universal superiority over disposable virtual machines. Its narrower claim is that Chambers may be over and above VM-based approaches on four axes: semantic residue minimization, lifecycle legibility, preservation narrowness, and legal execution surface.
+
+**Legal execution surface** is defined operationally as the number of distinct operations the environment permits. Chambers: 9 (a closed primitive algebra). gVisor: ~200 (filtered syscalls). A disposable VM or container: unbounded (any code can execute inside the guest). A smaller legal execution surface means fewer channels through which residue can be created, leaked, or retained.
+
+The architecture is meaningful even if the orchestration layer is implemented by a symbolic planner or a smaller model rather than a large language model.
 
 **Implementation note (v3):** A working substrate runtime, benchmark harness, and native application shell have been built and tested under application-layer assumptions (Section 2.4 documents what is not claimed). Comparative trace analysis against real disposable VM and Docker baselines shows: (a) zero undeclared residue for Chambers versus incidental metadata retention for baselines; (b) structural infeasibility of reconstruction for Chambers versus feasible reconstruction for baselines; (c) a structural predictability advantage from explicit preservation law, pending validation with human participants. The implementation reveals additional architectural requirements — application-layer isolation, encrypted memory pools, chamber-born model instances, and hypervisor boot — documented in this revision.
 
@@ -34,6 +38,8 @@ Unikernel approaches (MirageOS [21]) eliminate unnecessary OS components, reduci
 
 This paper starts from a narrower premise. Under a trusted-substrate assumption, it asks: what follows if the bounded world, not the application, is the primary semantic and persistence unit?
 
+**Contribution.** The novelty is not in any individual component — typed objects [18], capability systems [11], secure deletion [15][16][17], hardware enclaves [23][24], and ephemeral execution [1][2][13] all have precedent. The novelty is their composition into a single runtime model where the world, not the application, is the primary unit of persistence and destruction, governed by explicit preservation law and evaluated in terms of semantic residue. No prior system combines: (a) a world-first execution unit; (b) a closed primitive algebra constraining all world evolution; (c) formal preservation law declaring what may survive; (d) task-bounded grammars defining permitted object types and lifecycle phases; (e) cryptographic burn with residue-oriented semantics. Each component exists in isolation; the composition does not.
+
 ---
 
 ## 2. Threat Model: Inbound Access, Outbound Isolation
@@ -46,7 +52,7 @@ The original paper stated a "trusted-substrate assumption." Implementation revea
 
 **Inbound access** is necessary and permitted. The chamber uses the machine — CPU, memory, display, keyboard input. The chamber exists *on* the machine. This is not a violation of isolation; it is the precondition for the chamber to function.
 
-**Outbound access** is the threat. No information may escape the chamber into the host system, other processes, the network, persistent storage, the clipboard, or any hardware peripheral. When the chamber burns, the key is destroyed and the content is unrecoverable.
+**Outbound access** is the threat. No information may escape the chamber through application-layer channels — the network, persistent storage, the clipboard, the filesystem, or blocked hardware APIs. When the chamber burns, the key is destroyed and the content is unrecoverable through those channels. Section 2.2 documents what is explicitly not claimed: OS-level visibility, framebuffer capture, keystroke interception, and DMA access to K_w remain outside the application-layer boundary.
 
 The claim is therefore:
 
@@ -253,7 +259,7 @@ This is a UX-security finding that does not appear in the prior literature on pr
 
 ### 6.3 Fullscreen Isolation
 
-The chamber takes over the entire screen when opened. No dock, no menu bar, no other windows visible. The user is not "using an app" — they are "inside a room." When the chamber burns, the fullscreen vanishes and the desktop returns. The transition is immediate and total.
+The chamber takes over the entire screen when opened. No dock, no menu bar, no other windows visible. The design intent is that the user perceives the chamber as a bounded environment, not as another application. When the chamber burns, the fullscreen vanishes and the desktop returns. The transition is immediate. Note that OS-level processes (Activity Monitor, screen capture by other apps) can still observe the chamber's existence; the fullscreen model addresses the user's mental model, not the OS's awareness.
 
 ---
 
@@ -381,7 +387,7 @@ A chamber boot is security-by-construction: the VM has no capability to leak. Th
 3. VM sends "burn complete" signal via virtio control
 4. Host tells the hypervisor to destroy the VM
 5. All VM memory pages are freed (returned to host physical memory pool)
-6. The VM never existed from the host's perspective — no disk image, no log files, no memory trace
+6. All VM memory pages are freed. No disk image was created. Note: the host retains awareness that a VM was launched (process accounting, hypervisor logs) — "no trace" refers to world content, not existence metadata
 
 ---
 
@@ -397,6 +403,8 @@ The substrate was compared against two real baselines using a canonical decision
 - **Docker microVM baseline**: real ephemeral Docker container (`alpine:latest`, `--rm`, `--network none`, `--memory 64m`, `--read-only`, `--tmpfs /data`). Real post-destruction scan (Docker event log, daemon metadata, unified log, image layer cache).
 
 All conditions performed the same task with the same input data. Residue was measured after destruction.
+
+**Scope note.** The design-space analysis (Sections 4, 9) positions Chambers against 13 systems across 11 axes. The empirical section tests against 2 baselines. This asymmetry is intentional: the positioning is design-space analysis (where does Chambers sit relative to the field?), while the empirical section tests the most operationally relevant baselines (filesystem deletion and container destruction, which are the most common real-world "ephemeral computing" patterns). Testing against Qubes disposables, Firecracker, gVisor, and Tails would strengthen the empirical section but requires infrastructure beyond the current test environment. The positioning claims are architectural arguments; only the empirical findings are presented as measured results.
 
 **Observer effect note**: the unified log scanner (`log show`) is itself logged by the macOS unified log, creating one metadata entry per scan. This observer-effect entry is documented but excluded from intrinsic residue counts. The scanner was checked for secondary traces (Spotlight, .DS_Store, filesystem journals) — none were found.
 
