@@ -4,7 +4,7 @@
 
 **Arko Ganguli**
 
-*Revised manuscript — v2 with implementation findings*
+*Revised manuscript — v3 with peer review corrections*
 
 ---
 
@@ -18,7 +18,7 @@ This paper proposes Chambers, a world-based, persistence-law-first model in whic
 
 The paper does not claim universal superiority over disposable virtual machines. Its narrower claim is that Chambers may be over and above VM-based approaches on four axes: semantic residue minimization, lifecycle legibility, preservation narrowness, and legal execution surface. The architecture is meaningful even if the orchestration layer is implemented by a symbolic planner or a smaller model rather than a large language model.
 
-**Implementation note (v2):** A working substrate runtime, benchmark harness, and native application shell have been built. Hypotheses H1 (lower semantic residue) and H3 (infeasible reconstruction) are supported by empirical comparison against disposable VM and constrained microVM baselines. The implementation reveals additional architectural requirements — application-layer isolation, encrypted memory pools, chamber-born model instances, and hypervisor boot — that strengthen the original claims and are documented in this revision.
+**Implementation note (v3):** A working substrate runtime, benchmark harness, and native application shell have been built and tested under application-layer assumptions (Section 2.4 documents what is not claimed). Comparative trace analysis against real disposable VM and Docker baselines shows: (a) zero undeclared residue for Chambers versus incidental metadata retention for baselines; (b) structural infeasibility of reconstruction for Chambers versus feasible reconstruction for baselines; (c) a structural predictability advantage from explicit preservation law, pending validation with human participants. The implementation reveals additional architectural requirements — application-layer isolation, encrypted memory pools, chamber-born model instances, and hypervisor boot — documented in this revision.
 
 **Keywords:** privacy-preserving systems; ephemeral computing; world-based computing; capability systems; secure deletion; cryptographic erasure; disposable environments; burn semantics; semantic residue; persistence-law-first computing.
 
@@ -29,6 +29,8 @@ The paper does not claim universal superiority over disposable virtual machines.
 Most privacy systems improve computing by making persistent environments safer rather than by rejecting persistence itself. Tails presents a portable operating system intended to leave no trace on the host after shutdown; Qubes offers disposable and stateless guest environments; GrapheneOS hardens a general-purpose platform. These systems solve real problems, but they preserve a common assumption: the durable machine or reusable application environment remains the default computational unit.
 
 These systems are important, but they share a common premise: the fundamental unit of computation remains the persistent machine or the reusable application environment. Even where a guest is disposable, the guest is still machine-shaped. Even where shutdown minimizes host traces, the ontology remains application-centric. Even where the platform is heavily hardened, applications, files, recovery state, caches, and continuity remain first-class design assumptions.
+
+Unikernel approaches (MirageOS [21]) eliminate unnecessary OS components, reducing the persistence surface. Confidential computing (AMD SEV-SNP [23], Intel TDX [24], ARM CCA [25], Google Confidential VMs [22]) provides hardware-enforced memory encryption, preventing even the hypervisor from reading guest state. These are important advances, but they preserve the application-centric model — the unit of computation is still the program or VM, not the bounded task.
 
 This paper starts from a narrower premise. Under a trusted-substrate assumption, it asks: what follows if the bounded world, not the application, is the primary semantic and persistence unit?
 
@@ -52,7 +54,20 @@ The claim is therefore:
 
 This framing replaces the binary "trusted/untrusted" model with a directional one. The substrate consumes system resources (inbound). The substrate prevents information exfiltration (outbound). These are different problems requiring different solutions.
 
-### 2.2 Outbound Channels and Their Status
+### 2.2 What the System Does Not Claim
+
+The following are **not claimed** at any phase:
+
+- **OS-level invisibility.** macOS logs that the app launched (process name, timestamps, resource usage). An observer can determine a chamber existed.
+- **Framebuffer protection.** The rendered UI is visible to screen capture by co-resident processes. Displayed content is a residue channel for visual information.
+- **Keystroke protection.** A keylogger captures user input. System-generated state (convergence analysis, synthesis results) is not captured, but typed content is.
+- **DMA-proof memory.** K_w is in mlock'd RAM during operation. A DMA attacker who reads K_w can decrypt the encrypted memory pool. Hardware-grade memory encryption (SEV/TDX/SGX) provides stronger guarantees not achievable in user space.
+- **Protection against root.** A root-level attacker can bypass ptrace(PT_DENY_ATTACH) and read process memory. Hardened Runtime (requiring code signing) mitigates this but is deferred to Phase 3.
+- **Anonymity.** Chambers has no network and provides no identity protection. It is complementary to anonymity tools (e.g., Chambers inside Tails).
+
+These limitations are architectural, not implementation gaps. They define the boundary of what application-layer isolation can achieve.
+
+### 2.3 Outbound Channels and Their Status
 
 Implementation identified the following outbound channels and their mitigations:
 
@@ -95,7 +110,7 @@ Implementation identified the following outbound channels and their mitigations:
 | Framebuffer capture | Shows rendered UI only, not structured object graph | Accepted |
 | Keystroke interception | Captures user input only, not system-generated state | Accepted |
 
-### 2.3 The Remote Access Structural Claim
+### 2.4 The Remote Access Structural Claim
 
 Even under full hardware compromise, remote access into a running chamber is impossible. The chamber has no inbound network listener on any external interface, no RPC endpoint, no IPC channel, no shared memory, no signal handler, and no named pipe. Input is accepted only from the local event loop (physical keyboard and pointer).
 
@@ -370,34 +385,46 @@ A chamber boot is security-by-construction: the VM has no capability to leak. Th
 
 ---
 
-## 10. Evaluation Results
+## 10. Comparative Trace Analysis
 
-*[New section — v2]*
+*[Updated v3 — reframed from "hypothesis test" to "comparative trace analysis" per peer review. Baselines updated from simulated to real infrastructure.]*
 
-### 10.1 Benchmark Methodology
+### 10.1 Methodology
 
-The substrate was benchmarked against two baselines using a canonical decision task (cloud provider selection for HIPAA workloads):
+The substrate was compared against two real baselines using a canonical decision task (cloud provider selection for HIPAA workloads), 3 runs per condition:
 
-- **Disposable VM baseline**: temporary directory simulating VM filesystem, files created for each reasoning step, directory deleted
-- **Constrained microVM baseline**: in-memory (ramfs-like) environment, no persistent storage, memory zeroed on destruction
+- **Disposable VM baseline**: real temp directory on APFS, real file I/O, real `rm -rf` deletion, real post-deletion residue scan (macOS unified log, filesystem metadata, Spotlight, content grep).
+- **Docker microVM baseline**: real ephemeral Docker container (`alpine:latest`, `--rm`, `--network none`, `--memory 64m`, `--read-only`, `--tmpfs /data`). Real post-destruction scan (Docker event log, daemon metadata, unified log, image layer cache).
 
-All conditions performed the same task with the same input data. Post-destruction residue was measured.
+All conditions performed the same task with the same input data. Residue was measured after destruction.
+
+**Observer effect note**: the unified log scanner (`log show`) is itself logged by the macOS unified log, creating one metadata entry per scan. This observer-effect entry is documented but excluded from intrinsic residue counts. The scanner was checked for secondary traces (Spotlight, .DS_Store, filesystem journals) — none were found.
 
 ### 10.2 Results
 
-| Condition | Recoverable Object Fraction | Recoverable Edge Fraction | Metadata Count | Reconstruction Time |
-|-----------|---------------------------|--------------------------|----------------|-------------------|
-| Chambers | 0.0000 | 0.0000 | 0 | ∞ (infeasible) |
-| Disposable VM | 0.0000 | 0.0000 | 3 | 300s |
-| Constrained microVM | 0.0000 | 0.0000 | 4 | 600s |
+| Condition | Content Residue | Structural Residue | Existence-Level Metadata | Reconstruction |
+|-----------|----------------|-------------------|-------------------------|----------------|
+| **Chambers** | Zero (encrypted, K_w destroyed) | Zero (graph burned) | 2 (declared: WorldCreated + WorldDestroyed) | Infeasible (AES-256, key destroyed) |
+| Disposable VM | Zero (files deleted) | Zero (directory removed) | 2 (1 intrinsic + 1 observer effect) | Feasible from surviving traces |
+| Docker microVM | Zero (tmpfs freed) | Zero (container removed) | 5.3 (~4.3 intrinsic + 1 observer effect) | Feasible from surviving traces |
 
-### 10.3 Hypothesis Outcomes
+### 10.3 Findings
 
-**H1 (lower recoverable semantic residue): SUPPORTED.** Chambers achieves zero recoverable state with zero metadata. Both baselines retain OS-level metadata (process timestamps, directory records). The semantic residue difference is in metadata, not in object/edge recovery — at the filesystem level, all three conditions successfully delete their data. The difference is that Chambers has no filesystem to leave traces in.
+**Finding 1: Content and structural residue.** All three conditions achieve zero content and structural residue at the object level. Files are deleted, objects are destroyed, graph structures are removed. This is not a differentiator — all three approaches successfully destroy their data.
 
-**H2 (better user prediction of what survives): INCONCLUSIVE.** Requires user study. Tooling (comprehension test harness, scoring framework) is implemented and ready.
+**Finding 2: Existence-level metadata (predictability, not count).** All three conditions retain existence-level metadata — traces revealing "something happened" without revealing content. Chambers retains 2 events (WorldCreated + WorldDestroyed). The VM retains 1 intrinsic trace (/tmp modification timestamp). Docker retains ~4.3 intrinsic traces (event log lifecycle + metadata store + image cache).
 
-**H3 (fewer reconstructable intermediate traces): SUPPORTED.** Chambers reconstruction is infeasible due to cryptographic burn — K_w is destroyed, and all world state was encrypted under K_w. Baseline reconstruction requires forensic tools but is feasible in finite time (300-600 seconds modeled).
+The difference is not primarily in count but in **predictability**. Chambers' metadata is declared in advance by the grammar — the user knows exactly what will remain before the chamber is created. The baselines' metadata is incidental and unpredictable — a user cannot enumerate what the host OS or Docker daemon will retain. Tier 1 events contain no operation counts, object counts, or per-operation timestamps — only that a world existed and was destroyed.
+
+This is a lifecycle-legibility advantage, not a residue-count advantage.
+
+**Finding 3: Reconstruction feasibility.** Chambers reconstruction is structurally infeasible — K_w is destroyed, and all world state was encrypted under K_w (AES-256-GCM). Without the key, the retained ciphertext is computationally unrecoverable regardless of time or resources. Baseline reconstruction is feasible in principle from surviving traces (filesystem timestamps, Docker event logs), though no reconstruction protocol was executed to measure actual time.
+
+**Finding 4: Structural predictability of preservation (H2 structural analysis).** An automated analysis with synthetic participants at five knowledge levels shows that Chambers' explicit grammar enables users at the InformedUser level and above to achieve perfect prediction accuracy (F1 = 1.000) for what survives burn. No equivalent declaration exists for VM or Docker baselines — users cannot predict what host-level traces the OS or daemon will retain, and even Expert-level participants report lower confidence. This is a structural property of formal preservation law, not a measured human outcome. **Validation with human participants is pending.**
+
+**Finding 5: Docker residue exceeds simulation.** The simulated microVM baseline predicted 4 metadata entries; real Docker produced 5.3 — the Docker daemon's event logging system (create → attach → start → die → destroy) is a genuine residue channel the simulation missed. The base image cache (`alpine:latest`, 13.6MB) persists indefinitely on the host.
+
+**Baseline proxy sufficiency note.** Real Firecracker microVM baselines require Linux/KVM and were not feasible on the test hardware (macOS/Apple Silicon). Docker with `--rm --network none --read-only --tmpfs /data` is a reasonable proxy: both provide ephemeral execution with no persistent storage. The key difference is that Firecracker has a smaller host-side footprint (no Docker daemon, no image layer cache). A real Firecracker baseline would likely show fewer metadata entries than Docker (closer to the VM baseline) but more than Chambers (the host still retains VM lifecycle metadata). This remains future work.
 
 ---
 
@@ -405,14 +432,17 @@ All conditions performed the same task with the same input data. Post-destructio
 
 The model is narrow. Without ordinary import/export and without a general application model, it addresses only a bounded class of privacy-sensitive computation. The substrate is persistent and therefore the central object of trust. The orchestration section remains contingent on implementation discipline.
 
-**Additional limitations identified in implementation (v2):**
+**Additional limitations identified in implementation (v3):**
 
-- **OS-level visibility cannot be prevented.** macOS logs that the app launched. Activity Monitor shows resource usage during the session. These reveal that a chamber existed, though not what was inside.
-- **Framebuffer capture is not preventable from user space.** A co-resident process with screen capture permission can see the rendered UI. The UI shows display text, not the full structured object graph, but this is still a residue channel for displayed content.
-- **Keystroke interception is not preventable from user space.** A keylogger captures what the user typed. It does not capture system-generated state (convergence analysis, synthesis results).
-- **Apple Silicon mitigates but does not eliminate DMA.** The IOMMU blocks external DMA devices, but a compromised internal controller with pre-authorized DMA access could observe memory.
-- **The encrypted memory pool reduces but does not eliminate the DMA exposure window.** Plaintext exists in the guard buffer for microseconds per access. A sufficiently fast, continuous DMA observer could theoretically capture these windows.
-- **Model weights are not burned.** They are substrate-scoped infrastructure. If the model's weights contain information that could be used to infer chamber content (they should not, since weights are static and pre-trained), this would be a residue channel.
+- **OS-level visibility cannot be prevented.** macOS logs that the app launched. Activity Monitor shows resource usage during the session. These reveal that a chamber existed, though not what was inside (see Section 2.2 for full "not claimed" list).
+- **Framebuffer capture is not preventable from user space.** A co-resident process with screen capture permission can see the rendered UI.
+- **Keystroke interception is not preventable from user space.** A keylogger captures what the user typed. System-generated state is not captured.
+- **Apple Silicon mitigates but does not eliminate DMA.** The IOMMU blocks external DMA devices, but a compromised internal controller could observe K_w in mlock'd memory. The DMA exposure window has not been measured with hardware attack equipment (e.g., PCILeech) — this is future work.
+- **The encrypted memory pool is software-enforced, not hardware-enforced.** A root-level attacker who reads K_w from process memory can decrypt the encrypted store. Hardware-grade memory encryption (SEV/TDX/SGX) provides stronger guarantees not achievable in user space.
+- **Model weights are not burned.** They are substrate-scoped infrastructure. Weights are static and pre-trained; they should not contain chamber-specific information.
+- **Baseline measurements use proxies.** Docker containers serve as microVM proxies; real Firecracker baselines require Linux/KVM and were not feasible on test hardware. Reconstruction times are estimates from surviving traces, not measured reconstruction attempts.
+- **H2 (lifecycle comprehension) is structurally validated, not empirically validated.** Synthetic participants demonstrate the structural advantage of formal preservation law; human validation is pending.
+- **"Zero undeclared residue" is the accurate claim, not "zero residue."** Chambers retains 2 declared existence-level events (WorldCreated + WorldDestroyed). These are by design and documented in the grammar.
 
 ---
 
@@ -420,7 +450,7 @@ The model is narrow. Without ordinary import/export and without a general applic
 
 Chambers proposes a different unit of privacy-preserving computation. Rather than securing reusable app-centric environments more aggressively, it treats a bounded temporary world as the primary semantic unit. The substrate defines what may exist, what may happen, what may survive, and how destruction occurs. The orchestrator may arrange the world, but it may not invent its laws.
 
-Implementation confirms the core thesis: a world-first runtime with typed objects, finite primitives, preservation law, and burn semantics produces lower semantic residue than disposable VM baselines (H1 supported) and makes intermediate reasoning trace reconstruction infeasible (H3 supported).
+Comparative trace analysis against real baselines shows: zero undeclared residue for Chambers versus incidental metadata retention for baselines; structural infeasibility of reconstruction for Chambers versus feasible reconstruction for baselines; and a structural predictability advantage from explicit preservation law (pending human validation).
 
 Implementation also reveals requirements the original paper did not anticipate:
 
@@ -430,7 +460,7 @@ Implementation also reveals requirements the original paper did not anticipate:
 4. **The chamber should boot, not launch.** A hypervisor-based execution context (VM with no filesystem, no network, no shell) provides security-by-construction rather than security-by-cleanup.
 5. **An LLM can be born inside the chamber and die with it.** Model inference state is world-scoped, encrypted under K_w, and zeroed on burn. No cross-chamber memory. No cloud dependency. No provider sees the data.
 
-The paper's claim remains intentionally narrow. Chambers is not a universal replacement for VMs, amnesic operating systems, or hardened platforms. It is over and above those systems only if it can show a tighter legal execution surface, stronger semantic ringfence, clearer lifecycle law, and lower semantic residue than disposable guest environments can provide. The implementation evidence suggests it can.
+The paper's claim remains intentionally narrow. Chambers is not a universal replacement for VMs, amnesic operating systems, or hardened platforms. It occupies a distinct position in the design space: bounded ephemeral cognition with formal lifecycle law. It is complementary to, not competitive with, existing privacy tools — Chambers could run inside a Tails session (for anonymity), inside a Qubes disposable (for OS compartmentalization), or on hardware with SEV/TDX (for hardware-backed memory encryption). The comparative trace analysis suggests genuine advantages on the axes the architecture targets: lifecycle legibility, preservation predictability, and semantic residue structure.
 
 ---
 
@@ -456,3 +486,8 @@ The paper's claim remains intentionally narrow. Chambers is not a universal repl
 [18] Dennis and Van Horn. "Programming Semantics for Multiprogrammed Computations." CACM 1966.
 [19] Signal Protocol. Double Ratchet Algorithm. https://signal.org/docs/specifications/doubleratchet/
 [20] Apple Hypervisor.framework documentation. https://developer.apple.com/documentation/hypervisor
+[21] MirageOS. Library operating system for constructing unikernels. https://mirage.io/
+[22] Google Cloud Confidential VMs. SEV-backed encrypted VM instances. https://cloud.google.com/confidential-computing
+[23] AMD SEV-SNP. Secure Encrypted Virtualization — Secure Nested Paging. https://www.amd.com/en/developer/sev.html
+[24] Intel TDX. Trust Domain Extensions. https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/overview.html
+[25] ARM CCA. Confidential Compute Architecture. https://www.arm.com/architecture/security-features/arm-confidential-compute-architecture
