@@ -1,8 +1,12 @@
 # Competitive Analysis — Chambers vs. Existing Privacy Systems
 
-**Date:** 2026-04-05
+**Date:** 2026-04-05 (revised)
 
-This document compares Chambers (Phase 0 + Level 1 + Phase 2) against every privacy-preserving system referenced in the paper and commonly used alternatives. The comparison is feature-by-feature across the axes that define Chambers' architectural claims.
+This document compares Chambers (Phase 0 + Level 1 + Phase 2) against existing privacy-preserving systems to understand where Chambers sits in the design space.
+
+**This comparison illuminates design-space positioning, not competitive superiority.** Chambers is not a replacement for these tools. Different threat models require different tools. Tails provides anonymity. Qubes provides compartmentalization. Firecracker provides lightweight VM infrastructure. Chambers provides bounded ephemeral cognition with formal lifecycle law. They are complementary, not competing.
+
+**Configuration note:** Chambers is compared in its Phase 2 hardened state. Competitors are compared in their default configurations unless noted. Some competitors (Qubes with anti-evil-maid, Tails on storage-free hardware, Firecracker with jailer) can be significantly hardened beyond their defaults. Where relevant, hardened configurations are noted.
 
 ---
 
@@ -20,6 +24,10 @@ This document compares Chambers (Phase 0 + Level 1 + Phase 2) against every priv
 | **Whonix** | Privacy OS | Split gateway/workstation, Tor-routed, VM-based |
 | **Standard VM** | Disposable VM | VirtualBox/VMware/QEMU snapshot → use → delete |
 | **Private browsing** | Browser mode | Incognito/InPrivate — no history, no cookies after close |
+| **AMD SEV / Intel TDX** | Confidential computing | Hardware memory encryption for VM guests — hypervisor cannot read guest RAM |
+| **Intel SGX** | Trusted execution environment | Hardware enclaves — isolated memory region, encrypted, attestable |
+| **ARM CCA** | Confidential computing | ARM Realms — hardware-isolated execution contexts on ARM |
+| **Signal Protocol** | Secure messaging | Double Ratchet — forward-secret session keys, per-message key evolution |
 
 ---
 
@@ -123,10 +131,21 @@ This document compares Chambers (Phase 0 + Level 1 + Phase 2) against every priv
 | Whonix | No | N/A | Same as Qubes |
 | Standard VM | No | Hypervisor manages pages | Depends on hypervisor + IOMMU config |
 | Private browsing | No | N/A | No |
-| **AMD SEV** (hardware) | Yes — hardware memory encryption | Firmware-managed | N/A (hardware-level) |
-| **Intel TDX** (hardware) | Yes — hardware memory encryption | Firmware-managed | N/A (hardware-level) |
+| **AMD SEV / Intel TDX** | **Yes** — hardware encrypts ALL guest memory. Hypervisor cannot read guest RAM. | Firmware-managed, hardware-enforced. Key never in software. | Full — hardware IOMMU + memory encryption |
+| **Intel SGX** | **Yes** — enclave memory encrypted by CPU. | Hardware-managed per-enclave. | Full within enclave boundary |
+| **ARM CCA** | **Yes** — Realm memory encrypted by hardware. | Hardware-managed. | Full within Realm |
+| **Signal Protocol** | N/A (messaging, not computing) | Per-message key ratchet. Old keys deleted. | N/A |
 
-**Finding:** Chambers is the only software system that encrypts data in RAM during operation. AMD SEV and Intel TDX do this at the hardware level, but they're infrastructure features, not application architectures. Chambers does it in user space.
+**Finding:** Chambers is the only *software-only* system that encrypts data in RAM during operation. However, this is a weaker guarantee than hardware-backed encryption:
+
+| Property | Chambers (Phase 2) | AMD SEV / Intel TDX | Intel SGX |
+|----------|-------------------|--------------------|-----------| 
+| What's encrypted | Objects/links (not K_w itself) | ALL guest memory | Enclave memory only |
+| Key location | K_w in mlock'd process RAM — readable by DMA | Firmware/hardware — never in software | CPU-internal — never in RAM |
+| Can hypervisor/host read it? | Root can bypass ptrace and read K_w | **No** — hardware enforced | **No** — hardware enforced |
+| Attestation | None (Phase 3) | Yes — remote attestation | Yes — remote attestation |
+
+**Honest assessment:** Chambers' encrypted memory pool is defense-in-depth, not a hardware-grade guarantee. A root-level attacker who bypasses ptrace can read K_w from process memory and decrypt everything. SEV/TDX/SGX prevent this at the hardware level. Phase 3 (Secure Enclave for K_s) narrows this gap but does not close it fully — K_w still exists in RAM during operation.
 
 ---
 
@@ -254,42 +273,82 @@ This document compares Chambers (Phase 0 + Level 1 + Phase 2) against every priv
 
 ## Composite Scorecard
 
-Scale: 0 (worst) → 5 (best) per axis.
+Scale: 0 (worst) → 5 (best) per axis. Scores reflect the paper's own acknowledged limitations, not aspirational claims.
+
+**Chambers scoring rationale:**
+- Memory: 4 not 5 — objects encrypted but K_w itself is plaintext in mlock'd RAM. Root/DMA can read K_w.
+- Hardware: 4 not 5 — APIs blocked but framebuffer capture and keystroke interception are accepted channels.
+- Debug resist: 3 not 5 — ptrace denied but root can bypass. Hardened Runtime deferred to Phase 3.
+- Remote resist: 5 — structural property, no network listener exists. Not bypassable.
+- Residue: 5 — zero content/structural residue, 2 metadata events (accepted by design).
+
+**Competitor notes:**
+- Qubes (hardened): with LUKS per-qube + anti-evil-maid + minimal dom0 logging, scores higher than default.
+- Tails: strong within its threat model (anonymity + amnesia) — scored 0 on axes it doesn't target, not axes it fails at.
+- Firecracker (with jailer): scores higher than default configuration.
 
 | System | Residue | Legibility | Preservation | Execution | Memory | Clipboard | Hardware | Debug resist | Crypto erase | Remote resist | Recon resist | **Total /55** |
 |--------|---------|-----------|-------------|-----------|--------|-----------|----------|-------------|-------------|--------------|-------------|--------------|
-| **Chambers** | **5** | **5** | **5** | **5** | **5** | **5** | **5** | **5** | **5** | **5** | **5** | **55** |
-| Tails | 4 | 3 | 2 | 1 | 0 | 0 | 0 | 0 | 2 | 1 | 3 | 16 |
-| Qubes OS | 3 | 3 | 2 | 1 | 0 | 3 | 3 | 0 | 1 | 1 | 2 | 19 |
-| GrapheneOS | 2 | 2 | 1 | 1 | 1 | 0 | 2 | 2 | 0 | 0 | 2 | 13 |
+| **Chambers** | **5** | **5** | **5** | **5** | **4** | **5** | **4** | **3** | **5** | **5** | **5** | **51** |
+| AMD SEV/TDX | 3 | 1 | 1 | 1 | **5** | 0 | 0 | 4 | 1 | 0 | 2 | 18 |
+| Intel SGX | 3 | 1 | 1 | 2 | **5** | 0 | 0 | 5 | 1 | 0 | 3 | 21 |
 | Firecracker | 4 | 3 | 3 | 1 | 0 | 5 | 5 | 0 | 2 | 0 | 3 | 26 |
 | gVisor | 3 | 2 | 2 | 3 | 0 | 5 | 4 | 0 | 0 | 0 | 2 | 21 |
-| Docker | 2 | 2 | 1 | 1 | 0 | 5 | 1 | 0 | 0 | 0 | 1 | 13 |
+| Qubes OS | 3 | 3 | 2 | 1 | 0 | 3 | 3 | 0 | 1 | 1 | 2 | 19 |
+| Qubes (hardened) | 4 | 3 | 2 | 1 | 0 | 3 | 3 | 1 | 2 | 1 | 3 | 23 |
+| Tails | 4 | 3 | 2 | 1 | 0 | 0 | 0 | 0 | 2 | 1 | 3 | 16 |
 | Whonix | 3 | 2 | 2 | 1 | 0 | 3 | 0 | 0 | 1 | 0 | 2 | 14 |
+| GrapheneOS | 2 | 2 | 1 | 1 | 1 | 0 | 2 | 2 | 0 | 0 | 2 | 13 |
+| Docker | 2 | 2 | 1 | 1 | 0 | 5 | 1 | 0 | 0 | 0 | 1 | 13 |
 | Standard VM | 2 | 2 | 1 | 1 | 0 | 2 | 1 | 0 | 0 | 0 | 1 | 10 |
 | Private browsing | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 4 |
+
+**Note:** SEV/TDX and SGX score 5/5 on Memory — they provide hardware-enforced encryption that Chambers cannot match in software. Chambers scores higher overall because it addresses axes that hardware encryption doesn't (lifecycle legibility, preservation law, execution surface). These are complementary approaches: Phase 3 Hypervisor boot + Secure Enclave would combine Chambers' architectural properties with hardware-backed memory isolation.
 
 ---
 
 ## Key Insights
 
-### 1. Different category of system
+### 1. Chambers occupies a distinct position, not a superior one
 
-Chambers is not competing with these systems — it is solving a different problem. Tails, Qubes, and GrapheneOS are **operating systems**. Firecracker and gVisor are **infrastructure**. Docker is a **deployment tool**. Private browsing is a **browser feature**. Chambers is a **runtime for bounded private cognition**. The comparison reveals this by showing that Chambers scores highest precisely on axes that other systems don't address (lifecycle legibility, preservation narrowness, legal execution surface).
+Chambers is not competing with these systems — it is solving a different problem. Tails, Qubes, and GrapheneOS are **operating systems** for general privacy. Firecracker and gVisor are **infrastructure** for isolation. SEV/TDX/SGX provide **hardware-backed confidential computing**. Docker is a **deployment tool**. Chambers is a **runtime for bounded private cognition**.
 
-### 2. Cryptographic erasure is the differentiator
+The comparison is useful for understanding where Chambers sits in the design space, not for claiming it replaces these tools. Chambers scores highest on axes that other systems don't address (lifecycle legibility, preservation narrowness, execution surface). It scores lower than hardware solutions on memory protection. These are different tools for different threat models.
 
-Every other system relies on deletion. Chambers relies on key destruction. This is why reconstruction time is infinite for Chambers and finite for everything else. The encrypted memory pool (Phase 2) extends this from post-burn to during-operation.
+**Complementarity:** Chambers could run inside Tails (for anonymity + ephemeral cognition), inside a Qubes disposable (for OS-level compartmentalization), or on hardware with SEV/TDX (for hardware-backed memory encryption). The isolation models are stackable, not competing.
+
+### 2. Cryptographic erasure is the differentiator vs. software systems
+
+Every software system in this comparison relies on deletion. Chambers relies on key destruction. This is why reconstruction time is infinite for Chambers and finite for everything else. The encrypted memory pool (Phase 2) extends this from post-burn to during-operation.
+
+However, this is a software-level guarantee. A root-level attacker who reads K_w from process memory before burn can decrypt everything. Hardware solutions (SEV/TDX/SGX) provide stronger guarantees by keeping keys in hardware. Phase 3 (Secure Enclave) narrows this gap.
 
 ### 3. The closed execution surface is unique
 
-No other system constrains what can happen inside to a finite algebra. Even gVisor, which filters syscalls, still allows hundreds of operations. Chambers allows 9. This is the "legal execution surface" axis — smaller surface means fewer residue channels.
+No other system constrains what can happen inside to a finite algebra. Even gVisor, which filters syscalls, still allows hundreds of operations. Chambers allows 9. This is the "legal execution surface" axis — smaller surface means fewer residue channels. This property is independent of the underlying isolation technology and would be preserved even if Chambers ran inside a VM or TEE.
 
-### 4. Firecracker is the closest competitor
+### 4. Firecracker is the closest software competitor
 
-Firecracker scores highest among the baselines because it shares key properties: no persistent storage (RAM-only possible), no device access, minimal surface. The difference is that Firecracker is generic infrastructure — it doesn't know about typed objects, preservation law, or burn semantics. It's security-by-cleanup. Chambers is security-by-construction.
+Firecracker scores highest among the software baselines because it shares key properties: no persistent storage (RAM-only possible), no device access, minimal surface. The difference is that Firecracker is generic infrastructure — it doesn't know about typed objects, preservation law, or burn semantics. It's security-by-cleanup. Chambers is security-by-construction.
 
-### 5. Private browsing is theater
+### 5. Hardware TEEs are the strongest on memory protection
+
+AMD SEV, Intel TDX, Intel SGX, and ARM CCA provide guarantees that Chambers cannot match in software: hardware-enforced memory encryption with keys that never exist in software-accessible memory. A compromised hypervisor cannot read guest RAM. Chambers' encrypted memory pool is defense-in-depth — it raises the bar significantly but does not reach the hardware-enforced level. Phase 3 (Hypervisor.framework + Secure Enclave) moves toward this but remains weaker than dedicated confidential computing hardware.
+
+### 6. Signal Protocol analogy is precise
+
+The paper references Signal's Double Ratchet as an analogy for burn semantics. The comparison holds:
+
+| Property | Signal | Chambers |
+|----------|--------|----------|
+| Key scope | Per-message ratchet | Per-world K_w |
+| Key destruction | Old keys deleted after ratchet advance | K_w zeroized on burn |
+| Forward secrecy | Compromise of current key doesn't reveal past messages | Compromise of substrate doesn't reveal past worlds (K_w is gone) |
+| What survives | Delivered messages on recipient device | Sealed artifacts in vault |
+
+The difference: Signal's forward secrecy is per-message (fine-grained). Chambers' is per-world (coarse-grained). Signal preserves all delivered messages. Chambers preserves only explicitly sealed artifacts.
+
+### 7. Private browsing is theater
 
 Private browsing scores lowest because it provides almost no real isolation. DNS cache, OS page cache, favicon database, GPU process memory, extension state — all persist after the window closes. Users believe they're invisible. They're not.
 
@@ -309,3 +368,7 @@ Private browsing scores lowest because it provides almost no real isolation. DNS
 | App ecosystem | No | GrapheneOS, Qubes |
 
 Chambers is deliberately narrow. It trades generality for provable isolation within its bounded scope.
+
+**Why no anonymity?** Chambers does not route traffic through Tor or provide network anonymity because the chamber has no network. There is nothing to anonymize. However, Chambers is complementary to anonymity tools: running Chambers inside a Tails session would provide both anonymity (Tails handles the network layer) and ephemeral cognition (Chambers handles the world layer). The isolation models are orthogonal.
+
+**Why no hardware attestation?** Chambers Phase 2 operates entirely in user space without Apple Developer account. Hardware attestation (Secure Enclave, Hypervisor.framework) requires Phase 3. This is a sequencing choice, not an architectural limitation.
