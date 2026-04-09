@@ -2,7 +2,7 @@
 
 **Sealed Ephemeral Worlds for Private Cognition**
 
-A world-first runtime where thinking rooms self-destruct. You enter a chamber, do your reasoning, seal one decision, and burn everything else. The machine knows a chamber existed. It does not know what was inside.
+A runtime where thinking rooms self-destruct. You enter a chamber, do your reasoning, seal one decision, and burn everything else. The machine knows a chamber existed. It does not know what was inside.
 
 > [Read the paper](Chambers%20Position%20Paper.pdf)
 
